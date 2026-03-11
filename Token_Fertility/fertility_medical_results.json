@@ -2,7 +2,7 @@
   "tokenizer": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
   "dataset": "ekacare/MedMCQA-Indic",
   "domain": "medical",
-  "fertility_definition": "T/W (tokens per word)",
+  "fertility_definition": "sum(tokens)/sum(words)",
   "languages": [
     "en",
     "hi",
@@ -10,38 +10,39 @@
     "ta",
     "te"
   ],
-  "samples": 1000,
+  "samples_per_lang": 1000,
+  "seed": 42,
   "text_unit": "question_plus_options",
   "results": {
     "en": {
-      "fertility": 1.5217,
+      "fertility": 1.4603,
+      "samples": 1000,
       "avg_tokens": 38.84,
-      "avg_words": 26.6,
-      "samples": 1000
+      "avg_words": 26.6
     },
     "hi": {
-      "fertility": 2.6904,
+      "fertility": 2.5319,
+      "samples": 1000,
       "avg_tokens": 75.26,
-      "avg_words": 29.73,
-      "samples": 1000
+      "avg_words": 29.73
     },
     "bn": {
-      "fertility": 3.435,
+      "fertility": 3.3168,
+      "samples": 1000,
       "avg_tokens": 77.2,
-      "avg_words": 23.27,
-      "samples": 1000
+      "avg_words": 23.27
     },
     "ta": {
-      "fertility": 4.1422,
+      "fertility": 4.0029,
+      "samples": 1000,
       "avg_tokens": 86.06,
-      "avg_words": 21.5,
-      "samples": 1000
+      "avg_words": 21.5
     },
     "te": {
-      "fertility": 4.2119,
+      "fertility": 4.1169,
+      "samples": 1000,
       "avg_tokens": 87.54,
-      "avg_words": 21.26,
-      "samples": 1000
+      "avg_words": 21.26
     }
   }
 }

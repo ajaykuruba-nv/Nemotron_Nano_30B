@@ -1,0 +1,38 @@
+{
+  "tokenizer": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+  "dataset": "ai4bharat/samanantar",
+  "fertility_definition": "T/W (tokens per word)",
+  "languages": [
+    "hindi",
+    "bengali",
+    "tamil",
+    "telugu"
+  ],
+  "samples_per_lang": 500,
+  "results": {
+    "hindi": {
+      "fertility": 2.0828,
+      "samples": 500,
+      "avg_tokens": 37.76,
+      "avg_words": 18.35
+    },
+    "bengali": {
+      "fertility": 3.1307,
+      "samples": 500,
+      "avg_tokens": 32.24,
+      "avg_words": 10.5
+    },
+    "tamil": {
+      "fertility": 3.8218,
+      "samples": 500,
+      "avg_tokens": 31.53,
+      "avg_words": 8.41
+    },
+    "telugu": {
+      "fertility": 3.9949,
+      "samples": 500,
+      "avg_tokens": 29.17,
+      "avg_words": 7.44
+    }
+  }
+}

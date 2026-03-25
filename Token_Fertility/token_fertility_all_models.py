@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+from pathlib import Path
 
 import torch
 from datasets import load_dataset
@@ -64,7 +65,15 @@ def load_subsets(hf_token, samples, seed):
     return subsets
 
 
-def load_tokenizer(model_name, model_id, hf_token):
+def load_tokenizer(model_name, model_id, hf_token, *, local_tokenizer_path=None):
+    if local_tokenizer_path is not None:
+        kwargs = {}
+        if model_name in {"Aya Fire", "Nemotron", "Sarvam 30B", "Mistral Nemo Base 2407"}:
+            kwargs["trust_remote_code"] = True
+        if model_name == "Sarvam 30B":
+            kwargs["fix_mistral_regex"] = True
+        return AutoTokenizer.from_pretrained(local_tokenizer_path, **kwargs)
+
     kwargs = {"token": hf_token}
     if model_name in {"Aya Fire", "Nemotron", "Sarvam 30B", "Mistral Nemo Base 2407"}:
         kwargs["trust_remote_code"] = True
@@ -111,11 +120,39 @@ def main():
     parser.add_argument("--token", type=str, default=None)
     parser.add_argument("--models", type=str, nargs="*", default=None)
     parser.add_argument("--verify-sample", action="store_true")
+    parser.add_argument(
+        "--nemotron-extended-only",
+        action="store_true",
+        help=(
+            "Run token fertility only for Nemotron, using the locally saved extended "
+            "tokenizer (see --nemotron-tokenizer-path). Ignores --models."
+        ),
+    )
+    parser.add_argument(
+        "--nemotron-tokenizer-path",
+        type=str,
+        default=None,
+        help=(
+            "Directory with save_pretrained() output for the extended Nemotron tokenizer. "
+            "Default when --nemotron-extended-only: ../tokenizer/nemotron_nano_tokenizer_indic_extended"
+        ),
+    )
     args = parser.parse_args()
 
     hf_token = args.token or os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
-    models_to_run = args.models if args.models else list(MODEL_CONFIGS.keys())
-    models_to_run = [m for m in models_to_run if m in MODEL_CONFIGS]
+
+    default_extended = (
+        Path(__file__).resolve().parent.parent
+        / "tokenizer"
+        / "nemotron_nano_tokenizer_indic_extended"
+    )
+    nemotron_local_tok = None
+    if args.nemotron_extended_only:
+        models_to_run = ["Nemotron"]
+        nemotron_local_tok = args.nemotron_tokenizer_path or str(default_extended)
+    else:
+        models_to_run = args.models if args.models else list(MODEL_CONFIGS.keys())
+        models_to_run = [m for m in models_to_run if m in MODEL_CONFIGS]
 
     print("Loading dataset subsets...")
     subsets = load_subsets(hf_token, args.samples, args.seed)
@@ -145,10 +182,17 @@ def main():
         model_id = MODEL_CONFIGS[model_name]
         print(f"\n{'=' * 60}")
         print(f"Model: {model_name} ({model_id})")
+        if args.nemotron_extended_only and model_name == "Nemotron":
+            print(f"Tokenizer (local extended): {nemotron_local_tok}")
         print(f"{'=' * 60}")
 
         try:
-            tokenizer = load_tokenizer(model_name, model_id, hf_token)
+            local_path = (
+                nemotron_local_tok
+                if (args.nemotron_extended_only and model_name == "Nemotron")
+                else None
+            )
+            tokenizer = load_tokenizer(model_name, model_id, hf_token, local_tokenizer_path=local_path)
         except Exception as e:
             print(f"  Failed to load tokenizer: {e}")
             all_results["models"][model_name] = {"model_id": model_id, "error": str(e)}
@@ -172,10 +216,11 @@ def main():
             else:
                 print(f"    Error: {res['error']}")
 
-        all_results["models"][model_name] = {
-            "model_id": model_id,
-            "results": model_results,
-        }
+        entry = {"model_id": model_id, "results": model_results}
+        if args.nemotron_extended_only and model_name == "Nemotron":
+            entry["tokenizer_source"] = "local_extended"
+            entry["tokenizer_path"] = nemotron_local_tok
+        all_results["models"][model_name] = entry
 
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=2, ensure_ascii=False)

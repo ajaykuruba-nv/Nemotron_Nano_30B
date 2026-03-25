@@ -4,208 +4,36 @@
   "samples_per_lang": 500,
   "seed": 42,
   "models": {
-    "Aya Fire": {
-      "model_id": "CohereLabs/tiny-aya-fire",
-      "results": {
-        "hindi": {
-          "fertility": 1.5556,
-          "samples": 500,
-          "avg_tokens": 28.55,
-          "avg_words": 18.35
-        },
-        "bengali": {
-          "fertility": 2.3393,
-          "samples": 500,
-          "avg_tokens": 24.57,
-          "avg_words": 10.5
-        },
-        "tamil": {
-          "fertility": 2.5932,
-          "samples": 500,
-          "avg_tokens": 21.81,
-          "avg_words": 8.41
-        },
-        "telugu": {
-          "fertility": 3.114,
-          "samples": 500,
-          "avg_tokens": 23.16,
-          "avg_words": 7.44
-        }
-      }
-    },
     "Nemotron": {
       "model_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
       "results": {
         "hindi": {
-          "fertility": 2.0578,
+          "fertility": 1.9951,
           "samples": 500,
-          "avg_tokens": 37.76,
+          "avg_tokens": 36.61,
           "avg_words": 18.35
         },
         "bengali": {
-          "fertility": 3.0697,
+          "fertility": 2.8368,
           "samples": 500,
-          "avg_tokens": 32.24,
+          "avg_tokens": 29.8,
           "avg_words": 10.5
         },
         "tamil": {
-          "fertility": 3.748,
+          "fertility": 3.6681,
           "samples": 500,
-          "avg_tokens": 31.53,
+          "avg_tokens": 30.86,
           "avg_words": 8.41
         },
         "telugu": {
-          "fertility": 3.9212,
+          "fertility": 3.8032,
           "samples": 500,
-          "avg_tokens": 29.17,
+          "avg_tokens": 28.29,
           "avg_words": 7.44
         }
-      }
-    },
-    "Sarvam 30B": {
-      "model_id": "sarvamai/sarvam-30b",
-      "results": {
-        "hindi": {
-          "fertility": 1.4093,
-          "samples": 500,
-          "avg_tokens": 25.86,
-          "avg_words": 18.35
-        },
-        "bengali": {
-          "fertility": 1.6942,
-          "samples": 500,
-          "avg_tokens": 17.8,
-          "avg_words": 10.5
-        },
-        "tamil": {
-          "fertility": 2.4189,
-          "samples": 500,
-          "avg_tokens": 20.35,
-          "avg_words": 8.41
-        },
-        "telugu": {
-          "fertility": 2.5026,
-          "samples": 500,
-          "avg_tokens": 18.61,
-          "avg_words": 7.44
-        }
-      }
-    },
-    "Mistral Nemo Base 2407": {
-      "model_id": "mistralai/Mistral-Nemo-Base-2407",
-      "results": {
-        "hindi": {
-          "fertility": 2.0578,
-          "samples": 500,
-          "avg_tokens": 37.76,
-          "avg_words": 18.35
-        },
-        "bengali": {
-          "fertility": 3.0697,
-          "samples": 500,
-          "avg_tokens": 32.24,
-          "avg_words": 10.5
-        },
-        "tamil": {
-          "fertility": 3.748,
-          "samples": 500,
-          "avg_tokens": 31.53,
-          "avg_words": 8.41
-        },
-        "telugu": {
-          "fertility": 3.9212,
-          "samples": 500,
-          "avg_tokens": 29.17,
-          "avg_words": 7.44
-        }
-      }
-    },
-    "GPT-OSS-20B": {
-      "model_id": "openai/gpt-oss-20b",
-      "results": {
-        "hindi": {
-          "fertility": 1.6785,
-          "samples": 500,
-          "avg_tokens": 30.8,
-          "avg_words": 18.35
-        },
-        "bengali": {
-          "fertility": 2.3364,
-          "samples": 500,
-          "avg_tokens": 24.54,
-          "avg_words": 10.5
-        },
-        "tamil": {
-          "fertility": 3.2064,
-          "samples": 500,
-          "avg_tokens": 26.97,
-          "avg_words": 8.41
-        },
-        "telugu": {
-          "fertility": 3.1484,
-          "samples": 500,
-          "avg_tokens": 23.42,
-          "avg_words": 7.44
-        }
-      }
-    },
-    "Gemma 3 4B": {
-      "model_id": "google/gemma-3-4b-it",
-      "results": {
-        "hindi": {
-          "fertility": 1.4093,
-          "samples": 500,
-          "avg_tokens": 25.86,
-          "avg_words": 18.35
-        },
-        "bengali": {
-          "fertility": 1.6942,
-          "samples": 500,
-          "avg_tokens": 17.8,
-          "avg_words": 10.5
-        },
-        "tamil": {
-          "fertility": 2.4189,
-          "samples": 500,
-          "avg_tokens": 20.35,
-          "avg_words": 8.41
-        },
-        "telugu": {
-          "fertility": 2.9304,
-          "samples": 500,
-          "avg_tokens": 21.8,
-          "avg_words": 7.44
-        }
-      }
-    },
-    "Qwen 3.5": {
-      "model_id": "Qwen/Qwen3.5-397B-A17B",
-      "results": {
-        "hindi": {
-          "fertility": 2.2111,
-          "samples": 500,
-          "avg_tokens": 40.57,
-          "avg_words": 18.35
-        },
-        "bengali": {
-          "fertility": 3.0863,
-          "samples": 500,
-          "avg_tokens": 32.42,
-          "avg_words": 10.5
-        },
-        "tamil": {
-          "fertility": 4.2563,
-          "samples": 500,
-          "avg_tokens": 35.8,
-          "avg_words": 8.41
-        },
-        "telugu": {
-          "fertility": 4.7532,
-          "samples": 500,
-          "avg_tokens": 35.35,
-          "avg_words": 7.44
-        }
-      }
+      },
+      "tokenizer_source": "local_extended",
+      "tokenizer_path": "/home/admin/nvidia/Nemotron_Nano_30B/tokenizer/nemotron_nano_tokenizer_indic_extended/"
     }
   }
 }

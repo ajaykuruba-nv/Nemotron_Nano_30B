@@ -1,0 +1,8 @@
+# Nemotron tokenizer expansion (BhashaKritika)
+torch>=2.1.0
+transformers>=4.40.0
+datasets>=2.18.0
+indic-nlp-library>=0.92
+regex>=2023.0.0
+tqdm>=4.66.0
+accelerate>=0.27.0

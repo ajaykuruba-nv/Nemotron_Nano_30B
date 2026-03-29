@@ -29,10 +29,13 @@ usage() {
   echo "  $0 status           # show PID and whether process is alive"
   echo "  $0 logs             # print path to latest log"
   echo ""
+  echo "Special Flags:"
+  echo "  --test              # Runs a fast test with only 1000 documents per language."
+  echo ""
   echo "Examples:"
   echo "  $0 --tokenizer-only"
-  echo "  $0 --tokenizer-only --languages hindi,bengali"
-  echo "  $0 fg --tokenizer-only"
+  echo "  $0 --test --tokenizer-only"
+  echo "  $0 fg --test"
   echo ""
   echo "After logout/login, check progress:"
   echo "  tail -f ${LOG_DIR}/latest.log"
@@ -71,13 +74,28 @@ fi
 
 FOREGROUND=0
 ARGS=()
+HAS_LANGUAGES=0
+
 for arg in "$@"; do
   if [[ "$arg" == "fg" || "$arg" == "foreground" ]]; then
     FOREGROUND=1
+  elif [[ "$arg" == "--test" ]]; then
+    echo "🧪 Test mode activated: Overriding to 1000 documents per language."
+    ARGS+=("--samples-per-lang" "1000")
   else
+    if [[ "$arg" == --languages* ]]; then
+      HAS_LANGUAGES=1
+    fi
     ARGS+=("$arg")
   fi
 done
+
+# Fix the language problem: if the user didn't explicitly provide the --languages flag,
+# we enforce the 4 default Indic languages safely with no spaces to prevent bash-splitting bugs.
+if [[ "$HAS_LANGUAGES" -eq 0 ]]; then
+  echo "🌐 No --languages flag detected. Injecting safe default: hindi,bengali,tamil,telugu"
+  ARGS+=("--languages" "hindi,bengali,tamil,telugu")
+fi
 
 if [[ ! -f "$PY" ]]; then
   echo "Missing $PY" >&2
@@ -87,12 +105,14 @@ fi
 cd "$SCRIPT_DIR"
 
 if [[ "$FOREGROUND" -eq 1 ]]; then
+  echo "Running command: python3 $PY ${ARGS[*]}"
   exec python3 "$PY" "${ARGS[@]}"
 fi
 
 LOG_FILE="${LOG_DIR}/expand_$(date +%Y%m%d_%H%M%S).log"
 ln -sf "$LOG_FILE" "${LOG_DIR}/latest.log"
 
+echo "Running command: python3 $PY ${ARGS[*]}" >> "$LOG_FILE"
 nohup python3 "$PY" "${ARGS[@]}" >>"$LOG_FILE" 2>&1 &
 echo $! >"$PID_FILE"
 
@@ -102,5 +122,3 @@ echo "Also linked: ${LOG_DIR}/latest.log"
 echo ""
 echo "Monitor: tail -f ${LOG_DIR}/latest.log"
 echo "Status:  ${SCRIPT_DIR}/run_expand.sh status"
-echo ""
-echo "Note: Some clusters kill long jobs on login nodes; if that happens, use Slurm (sbatch)."

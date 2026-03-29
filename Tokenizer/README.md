@@ -17,6 +17,20 @@ pip install -r requirements.txt
 
 The training code uses the `tokenizers` library (typically installed with `transformers`). If imports fail, run: `pip install tokenizers`.
 
+## Quick start (`run_expand.sh`)
+
+From `/home/admin/nvidia/Nemotron_Nano_30B/Tokenizer`:
+
+| Goal | Command |
+|------|---------|
+| **Quick test** (small sample, tokenizer only, logs to your terminal) | `./run_expand.sh fg --test --tokenizer-only` |
+| Same test in **background** | `./run_expand.sh --test --tokenizer-only` |
+| **Full run** (production settings, **background** + `nohup`, survives SSH disconnect if the node allows it) | `./run_expand.sh` |
+
+- **`--test`** is interpreted only by **`run_expand.sh`**: it turns into `--samples-per-lang 1000` so the pipeline finishes quickly.
+- **Full `./run_expand.sh`** does **not** pass `--tokenizer-only`, so it runs the **full** Python path: expand tokenizer, load the **30B** weights, resize embeddings, and save model + tokenizer (high RAM/VRAM). For a long tokenizer-only job in the background, use `./run_expand.sh --tokenizer-only` instead.
+- If you omit **`--languages`**, the script injects `hindi,bengali,tamil,telugu` (no spaces) so arguments are not split wrongly in bash.
+
 ## Run the Python script (foreground)
 
 ```bash
@@ -39,6 +53,7 @@ python expand_nemotron_bhashakritika.py
 | `--new-tokens` | `32000` | Total new subwords to learn across **all** selected languages (joint BPE). |
 | `--samples-per-lang` | `150000` | Cap on streamed training documents **per** language. |
 | `--tokenizer-only` | off | Save only the expanded tokenizer; do not load or save the full model. |
+| `--trust-remote-code` / `--no-trust-remote-code` | on | Nemotron’s Hub repo uses custom modeling code; keep **on** so `nohup`/Slurm jobs do not hang on an interactive prompt. |
 
 Examples:
 
@@ -55,16 +70,36 @@ Use `run_expand.sh` so the job keeps running after you close the session **as lo
 cd /home/admin/nvidia/Nemotron_Nano_30B/Tokenizer
 chmod +x run_expand.sh   # once
 
-# Background (default): arguments are forwarded to the Python script
+# Full production run (default languages, full model save) — same as Quick start table
+./run_expand.sh
+
+# Tokenizer-only in background (no 30B load)
 ./run_expand.sh --tokenizer-only
+
+# Optional: override languages or token budget (comma-separated, no spaces)
 ./run_expand.sh --tokenizer-only --languages hindi,bengali,tamil --new-tokens 32000
 ```
 
 ### Foreground (no `nohup`)
 
 ```bash
+# Quick test (see Quick start)
+./run_expand.sh fg --test --tokenizer-only
+
+# Foreground full pipeline (still loads 30B)
+./run_expand.sh fg
+
+# Foreground tokenizer-only
 ./run_expand.sh fg --tokenizer-only
 ```
+
+### `run_expand.sh` flags (wrapper)
+
+| Flag / behavior | Meaning |
+|-----------------|--------|
+| `--test` | Shell-only: adds `--samples-per-lang 1000` for a fast dry run. |
+| (no `--languages`) | Injects `--languages hindi,bengali,tamil,telugu`. |
+| `fg` / `foreground` | Run in the foreground instead of `nohup`. |
 
 ### Check progress after you log back in
 
@@ -74,12 +109,48 @@ tail -f /home/admin/nvidia/Nemotron_Nano_30B/Tokenizer/logs/latest.log
 
 # Or print the log path
 /home/admin/nvidia/Nemotron_Nano_30B/Tokenizer/run_expand.sh logs
-
-# See whether the PID is still running
-/home/admin/nvidia/Nemotron_Nano_30B/Tokenizer/run_expand.sh status
 ```
 
 Logs are written under `logs/expand_YYYYMMDD_HHMMSS.log`; `logs/latest.log` is a symlink to the most recent run. The process ID is stored in `expand_nemotron.pid`.
+
+### Is the job still running?
+
+```bash
+cd /home/admin/nvidia/Nemotron_Nano_30B/Tokenizer
+
+# Wrapper (shows PID, elapsed time, command if alive)
+./run_expand.sh status
+
+# Same PID file, manual check
+test -f expand_nemotron.pid && ps -p "$(cat expand_nemotron.pid)" -o pid,etime,cmd
+
+# Find the Python process by script name (if you lost the PID file)
+pgrep -af "expand_nemotron_bhashakritika.py"
+```
+
+If you submitted via **Slurm**, use `squeue -u "$USER"` or `sacct -j <jobid>` instead.
+
+### Stop or kill the job
+
+Graceful stop (asks the process to exit; prefer this first):
+
+```bash
+cd /home/admin/nvidia/Nemotron_Nano_30B/Tokenizer
+kill "$(cat expand_nemotron.pid)"
+```
+
+If it does not exit within a short wait, force kill:
+
+```bash
+kill -9 "$(cat expand_nemotron.pid)"
+```
+
+If `expand_nemotron.pid` is missing or wrong, use `pgrep` to find the PID, then `kill <pid>` or `kill -9 <pid>`.
+
+```bash
+pgrep -af "expand_nemotron_bhashakritika.py"
+kill <PID_FROM_ABOVE>
+```
 
 ### Help for the shell wrapper
 

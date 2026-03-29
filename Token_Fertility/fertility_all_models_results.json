@@ -8,32 +8,32 @@
       "model_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
       "results": {
         "hindi": {
-          "fertility": 1.9583,
+          "fertility": 1.7623,
           "samples": 500,
-          "avg_tokens": 35.93,
+          "avg_tokens": 32.34,
           "avg_words": 18.35
         },
         "bengali": {
-          "fertility": 2.8292,
+          "fertility": 2.2319,
           "samples": 500,
-          "avg_tokens": 29.72,
+          "avg_tokens": 23.44,
           "avg_words": 10.5
         },
         "tamil": {
-          "fertility": 3.6717,
+          "fertility": 2.2268,
           "samples": 500,
-          "avg_tokens": 30.89,
+          "avg_tokens": 18.73,
           "avg_words": 8.41
         },
         "telugu": {
-          "fertility": 3.8075,
+          "fertility": 2.2764,
           "samples": 500,
-          "avg_tokens": 28.32,
+          "avg_tokens": 16.93,
           "avg_words": 7.44
         }
       },
       "tokenizer_source": "local_extended",
-      "tokenizer_path": "/home/admin/nvidia/Nemotron_Nano_30B/tokenizer/nemotron_nano_tokenizer_indic_extended/"
+      "tokenizer_path": "/home/admin/nvidia/Nemotron_Nano_30B/Tokenizer/nemotron-indic-expanded"
     }
   }
 }

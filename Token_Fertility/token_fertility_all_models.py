@@ -10,6 +10,10 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 
 
+# Default local tokenizer after `expand_nemotron_bhashakritika.py` save_pretrained (repo root-relative).
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_NEMOTRON_EXTENDED_TOKENIZER = REPO_ROOT / "Tokenizer" / "nemotron-indic-expanded"
+
 MODEL_CONFIGS = {
     "Aya Fire": "CohereLabs/tiny-aya-fire",
     "Nemotron": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
@@ -134,22 +138,17 @@ def main():
         default=None,
         help=(
             "Directory with save_pretrained() output for the extended Nemotron tokenizer. "
-            "Default when --nemotron-extended-only: ../tokenizer/nemotron_nano_tokenizer_indic_extended"
+            f"Default when --nemotron-extended-only: {DEFAULT_NEMOTRON_EXTENDED_TOKENIZER}"
         ),
     )
     args = parser.parse_args()
 
     hf_token = args.token or os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
 
-    default_extended = (
-        Path(__file__).resolve().parent.parent
-        / "tokenizer"
-        / "nemotron_nano_tokenizer_indic_extended"
-    )
     nemotron_local_tok = None
     if args.nemotron_extended_only:
         models_to_run = ["Nemotron"]
-        nemotron_local_tok = args.nemotron_tokenizer_path or str(default_extended)
+        nemotron_local_tok = args.nemotron_tokenizer_path or str(DEFAULT_NEMOTRON_EXTENDED_TOKENIZER)
     else:
         models_to_run = args.models if args.models else list(MODEL_CONFIGS.keys())
         models_to_run = [m for m in models_to_run if m in MODEL_CONFIGS]

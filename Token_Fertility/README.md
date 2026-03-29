@@ -56,11 +56,11 @@ python3 token_fertility_all_models.py [OPTIONS]
 | `--nemotron-extended-only` | off | Run **only** Nemotron, loading the **local extended** tokenizer (ignores `--models`) |
 | `--nemotron-tokenizer-path` | (see below) | Directory from `save_pretrained()` for the extended tokenizer |
 
-When `--nemotron-extended-only` is set, the default tokenizer path is:
+When `--nemotron-extended-only` is set, the default tokenizer path is the expanded Nemotron save directory:
 
-`../tokenizer/nemotron_nano_tokenizer_indic_extended`
+`../Tokenizer/nemotron-indic-expanded`
 
-(relative to this `Token_Fertility` directory). Override with `--nemotron-tokenizer-path /your/path`.
+(relative to the **repo root** `Nemotron_Nano_30B`, i.e. output of `Tokenizer/expand_nemotron_bhashakritika.py`). Override with `--nemotron-tokenizer-path /your/path`.
 
 The results JSON includes `tokenizer_source: "local_extended"` and `tokenizer_path` for that run.
 

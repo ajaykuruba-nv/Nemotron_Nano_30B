@@ -3,8 +3,18 @@
 Correctly expand NVIDIA Nemotron 3 Nano 30B tokenizer using krutrim-ai-labs/BhashaKritika.
 
 This script trains a new tokenizer to discover optimal subwords, decodes them to unicode,
-and adds them via `add_tokens()` to bypass BPE merge conflicts. It then resizes and 
+and adds them via `add_tokens()` to bypass BPE merge conflicts. It then resizes and
 mean-initializes both input and output embeddings.
+
+After saving to the default ``--output-dir`` (e.g. ./nemotron-indic-expanded), measure
+token fertility on Samanantar with the extended tokenizer:
+
+  cd ../Token_Fertility
+  python3 token_fertility_all_models.py --nemotron-extended-only \\
+      --nemotron-tokenizer-path ../Tokenizer/nemotron-indic-expanded
+
+The fertility script defaults ``--nemotron-tokenizer-path`` to that directory when
+``--nemotron-extended-only`` is set.
 """
 
 from __future__ import annotations

@@ -166,3 +166,15 @@ Many HPC sites **kill long or heavy processes on login nodes**, even with `nohup
 
 - With `--tokenizer-only`: tokenizer files under `--output-dir` (default `./nemotron-indic-expanded`).
 - Without it: model weights and tokenizer under `--output-dir` (large; needs sufficient GPU/RAM).
+
+## Token fertility check (extended Nemotron tokenizer)
+
+From the repo, run `Token_Fertility/token_fertility_all_models.py` against the saved tokenizer (default path matches `./nemotron-indic-expanded`):
+
+```bash
+cd /home/admin/nvidia/Nemotron_Nano_30B/Token_Fertility
+python3 token_fertility_all_models.py --nemotron-extended-only \
+  --nemotron-tokenizer-path ../Tokenizer/nemotron-indic-expanded
+```
+
+If you used a different `--output-dir`, pass that path instead. With only `--nemotron-extended-only`, the script uses `../Tokenizer/nemotron-indic-expanded` by default.

@@ -3,18 +3,9 @@
 Correctly expand NVIDIA Nemotron 3 Nano 30B tokenizer using krutrim-ai-labs/BhashaKritika.
 
 This script trains a new tokenizer to discover optimal subwords, decodes them to unicode,
-and adds them via `add_tokens()` to bypass BPE merge conflicts. It then resizes and
-mean-initializes both input and output embeddings.
-
-After saving to the default ``--output-dir`` (e.g. ./nemotron-indic-expanded), measure
-token fertility on Samanantar with the extended tokenizer:
-
-  cd ../Token_Fertility
-  python3 token_fertility_all_models.py --nemotron-extended-only \\
-      --nemotron-tokenizer-path ../Tokenizer/nemotron-indic-expanded
-
-The fertility script defaults ``--nemotron-tokenizer-path`` to that directory when
-``--nemotron-extended-only`` is set.
+and adds them via `add_tokens()` to bypass BPE merge conflicts. It includes regex fixes
+for Mistral-based tokenizers to ensure proper Indic character grouping, and resizes/mean-initializes
+both input and output embeddings.
 """
 
 from __future__ import annotations
@@ -100,8 +91,15 @@ def main():
     langs = [l.strip() for l in args.languages.split(",")]
     devanagari_norm = get_devanagari_normalizer()
 
-    logger.info("Loading base tokenizer...")
-    base_tokenizer = AutoTokenizer.from_pretrained(args.model_id, use_fast=True, trust_remote_code=True)
+    logger.info("Loading base tokenizer with regex fixes...")
+    
+    # CRITICAL FIX: fix_mistral_regex=True prevents the pre-tokenizer from shattering Indic words
+    base_tokenizer = AutoTokenizer.from_pretrained(
+        args.model_id, 
+        use_fast=True, 
+        trust_remote_code=True,
+        fix_mistral_regex=True
+    )
     original_vocab_size = len(base_tokenizer)
 
     total_docs = len(langs) * args.samples_per_lang
@@ -111,10 +109,10 @@ def main():
         stream = get_mixed_language_stream(langs, args.samples_per_lang, devanagari_norm, pbar)
         
         # 1. Train a temporary tokenizer to discover the best subwords
-        target_vocab_size = original_vocab_size + args.new_tokens
+        # FIXED: Directly use args.new_tokens so we don't accidentally add 150k+ tokens
         trained_tokenizer = base_tokenizer.train_new_from_iterator(
             batch_iterator(stream), 
-            vocab_size=args.new_tokens  # <-- FIXED: Just use the 32k limit directly!
+            vocab_size=args.new_tokens
         )
 
     # 2. Extract the learned tokens and convert them back to strings
@@ -168,7 +166,7 @@ def main():
     logger.info(f"Saving model and tokenizer to {args.output_dir}...")
     model.save_pretrained(args.output_dir)
     base_tokenizer.save_pretrained(args.output_dir)
-    logger.info("Complete.")
+    logger.info("Complete. Model is ready for Indic continual pre-training.")
 
 if __name__ == "__main__":
     main()

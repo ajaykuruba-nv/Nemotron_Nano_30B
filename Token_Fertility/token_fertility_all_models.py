@@ -10,13 +10,21 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 
 
-# Default local tokenizer after `expand_nemotron_bhashakritika.py` save_pretrained (repo root-relative).
+# Default local tokenizers (repo root-relative).
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_NEMOTRON_EXTENDED_TOKENIZER = REPO_ROOT / "Tokenizer" / "nemotron-indic-expanded"
+# After `continued_bpe.py` save_pretrained (timestamped outputs folder).
+DEFAULT_NEMOTRON_CONTINUED_BPE_TOKENIZER = (
+    REPO_ROOT / "Tokenizer" / "outputs" / "continued_bpe_20260331_150643"
+)
+
+NEMOTRON_BASE_ID = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
 
 MODEL_CONFIGS = {
     "Aya Fire": "CohereLabs/tiny-aya-fire",
-    "Nemotron": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+    "Nemotron": NEMOTRON_BASE_ID,
+    "Nemotron Indic Expanded": NEMOTRON_BASE_ID,
+    "Nemotron Continued BPE": NEMOTRON_BASE_ID,
     "Sarvam 30B": "sarvamai/sarvam-30b",
     "Mistral Nemo Base 2407": "mistralai/Mistral-Nemo-Base-2407",
     "GPT-OSS-20B": "openai/gpt-oss-20b",
@@ -72,16 +80,30 @@ def load_subsets(hf_token, samples, seed):
 def load_tokenizer(model_name, model_id, hf_token, *, local_tokenizer_path=None):
     if local_tokenizer_path is not None:
         kwargs = {}
-        if model_name in {"Aya Fire", "Nemotron", "Sarvam 30B", "Mistral Nemo Base 2407"}:
+        if model_name in {
+            "Aya Fire",
+            "Nemotron",
+            "Nemotron Indic Expanded",
+            "Nemotron Continued BPE",
+            "Sarvam 30B",
+            "Mistral Nemo Base 2407",
+        }:
             kwargs["trust_remote_code"] = True
-        if model_name == "Sarvam 30B":
+        if model_name in {"Sarvam 30B", "Nemotron", "Nemotron Indic Expanded", "Nemotron Continued BPE"}:
             kwargs["fix_mistral_regex"] = True
         return AutoTokenizer.from_pretrained(local_tokenizer_path, **kwargs)
 
     kwargs = {"token": hf_token}
-    if model_name in {"Aya Fire", "Nemotron", "Sarvam 30B", "Mistral Nemo Base 2407"}:
+    if model_name in {
+        "Aya Fire",
+        "Nemotron",
+        "Nemotron Indic Expanded",
+        "Nemotron Continued BPE",
+        "Sarvam 30B",
+        "Mistral Nemo Base 2407",
+    }:
         kwargs["trust_remote_code"] = True
-    if model_name == "Sarvam 30B":
+    if model_name in {"Sarvam 30B", "Nemotron", "Nemotron Indic Expanded", "Nemotron Continued BPE"}:
         kwargs["fix_mistral_regex"] = True
     return AutoTokenizer.from_pretrained(model_id, **kwargs)
 
@@ -141,9 +163,24 @@ def main():
             f"Default when --nemotron-extended-only: {DEFAULT_NEMOTRON_EXTENDED_TOKENIZER}"
         ),
     )
+    parser.add_argument(
+        "--nemotron-continued-bpe-path",
+        type=str,
+        default=None,
+        help=(
+            "Directory with save_pretrained() output for Nemotron continued-BPE tokenizer. "
+            f"Used for model name 'Nemotron Continued BPE'. Default: {DEFAULT_NEMOTRON_CONTINUED_BPE_TOKENIZER}"
+        ),
+    )
     args = parser.parse_args()
 
     hf_token = args.token or os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+
+    continued_bpe_path = args.nemotron_continued_bpe_path or str(DEFAULT_NEMOTRON_CONTINUED_BPE_TOKENIZER)
+    local_tokenizer_overrides = {
+        "Nemotron Indic Expanded": str(DEFAULT_NEMOTRON_EXTENDED_TOKENIZER),
+        "Nemotron Continued BPE": continued_bpe_path,
+    }
 
     nemotron_local_tok = None
     if args.nemotron_extended_only:
@@ -183,14 +220,16 @@ def main():
         print(f"Model: {model_name} ({model_id})")
         if args.nemotron_extended_only and model_name == "Nemotron":
             print(f"Tokenizer (local extended): {nemotron_local_tok}")
+        if model_name in local_tokenizer_overrides:
+            print(f"Tokenizer (local): {local_tokenizer_overrides[model_name]}")
         print(f"{'=' * 60}")
 
         try:
-            local_path = (
-                nemotron_local_tok
-                if (args.nemotron_extended_only and model_name == "Nemotron")
-                else None
-            )
+            local_path = None
+            if args.nemotron_extended_only and model_name == "Nemotron":
+                local_path = nemotron_local_tok
+            elif model_name in local_tokenizer_overrides:
+                local_path = local_tokenizer_overrides[model_name]
             tokenizer = load_tokenizer(model_name, model_id, hf_token, local_tokenizer_path=local_path)
         except Exception as e:
             print(f"  Failed to load tokenizer: {e}")
@@ -219,6 +258,9 @@ def main():
         if args.nemotron_extended_only and model_name == "Nemotron":
             entry["tokenizer_source"] = "local_extended"
             entry["tokenizer_path"] = nemotron_local_tok
+        elif model_name in local_tokenizer_overrides:
+            entry["tokenizer_source"] = "local"
+            entry["tokenizer_path"] = local_tokenizer_overrides[model_name]
         all_results["models"][model_name] = entry
 
     with open(args.output, "w", encoding="utf-8") as f:

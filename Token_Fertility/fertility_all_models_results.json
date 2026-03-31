@@ -8,6 +8,35 @@
       "model_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
       "results": {
         "hindi": {
+          "fertility": 2.0578,
+          "samples": 500,
+          "avg_tokens": 37.76,
+          "avg_words": 18.35
+        },
+        "bengali": {
+          "fertility": 3.0697,
+          "samples": 500,
+          "avg_tokens": 32.24,
+          "avg_words": 10.5
+        },
+        "tamil": {
+          "fertility": 3.748,
+          "samples": 500,
+          "avg_tokens": 31.53,
+          "avg_words": 8.41
+        },
+        "telugu": {
+          "fertility": 3.9212,
+          "samples": 500,
+          "avg_tokens": 29.17,
+          "avg_words": 7.44
+        }
+      }
+    },
+    "Nemotron Indic Expanded": {
+      "model_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+      "results": {
+        "hindi": {
           "fertility": 1.7623,
           "samples": 500,
           "avg_tokens": 32.34,
@@ -32,8 +61,39 @@
           "avg_words": 7.44
         }
       },
-      "tokenizer_source": "local_extended",
+      "tokenizer_source": "local",
       "tokenizer_path": "/home/admin/nvidia/Nemotron_Nano_30B/Tokenizer/nemotron-indic-expanded"
+    },
+    "Nemotron Continued BPE": {
+      "model_id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
+      "results": {
+        "hindi": {
+          "fertility": 1.4415,
+          "samples": 500,
+          "avg_tokens": 26.45,
+          "avg_words": 18.35
+        },
+        "bengali": {
+          "fertility": 1.8627,
+          "samples": 500,
+          "avg_tokens": 19.57,
+          "avg_words": 10.5
+        },
+        "tamil": {
+          "fertility": 1.8062,
+          "samples": 500,
+          "avg_tokens": 15.19,
+          "avg_words": 8.41
+        },
+        "telugu": {
+          "fertility": 1.8381,
+          "samples": 500,
+          "avg_tokens": 13.67,
+          "avg_words": 7.44
+        }
+      },
+      "tokenizer_source": "local",
+      "tokenizer_path": "/home/admin/nvidia/Nemotron_Nano_30B/Tokenizer/outputs/continued_bpe_20260331_150643"
     }
   }
 }

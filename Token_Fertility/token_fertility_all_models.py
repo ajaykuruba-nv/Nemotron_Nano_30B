@@ -3,10 +3,12 @@
 import argparse
 import json
 import os
+import tempfile
 from pathlib import Path
 
 import torch
 from datasets import load_dataset
+from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer
 
 
@@ -15,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_NEMOTRON_EXTENDED_TOKENIZER = REPO_ROOT / "Tokenizer" / "nemotron-indic-expanded"
 # After `continued_bpe.py` save_pretrained (timestamped outputs folder).
 DEFAULT_NEMOTRON_CONTINUED_BPE_TOKENIZER = (
-    REPO_ROOT / "Tokenizer" / "outputs" / "continued_bpe_20260331_150643"
+    REPO_ROOT / "Tokenizer" / "outputs" / "continued_bpe_20260404_041116"
 )
 
 NEMOTRON_BASE_ID = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
@@ -29,6 +31,7 @@ MODEL_CONFIGS = {
     "Mistral Nemo Base 2407": "mistralai/Mistral-Nemo-Base-2407",
     "GPT-OSS-20B": "openai/gpt-oss-20b",
     "Gemma 3 4B": "google/gemma-3-4b-it",
+    "Gemma 4 31B": "google/gemma-4-31B",
     "Qwen 3.5": "Qwen/Qwen3.5-397B-A17B",
 }
 
@@ -77,6 +80,51 @@ def load_subsets(hf_token, samples, seed):
     return subsets
 
 
+def _needs_gemma4_extra_special_tokens_dict_fix(model_id: str) -> bool:
+    """google/gemma-4-* tokenizer_config.json may list extra_special_tokens as a JSON array; transformers expects a dict."""
+    return model_id.startswith("google/gemma-4-")
+
+
+def _normalize_tokenizer_config_extra_special_tokens(cfg: dict) -> dict:
+    est = cfg.get("extra_special_tokens")
+    if not isinstance(est, list):
+        return cfg
+    mapping: dict[str, str] = {}
+    for i, tok in enumerate(est):
+        t = str(tok)
+        if t == "<|video|>":
+            mapping["video_token"] = t
+        else:
+            mapping[f"extra_special_token_{i}"] = t
+    cfg = dict(cfg)
+    cfg["extra_special_tokens"] = mapping
+    return cfg
+
+
+def load_tokenizer_from_hub_with_tokenizer_config_patch(model_id: str, hf_token: str | None, **from_pretrained_kwargs) -> AutoTokenizer:
+    """
+    Work around: AttributeError 'list' object has no attribute 'keys' when loading Gemma 4 fast tokenizers
+    (extra_special_tokens is a list in tokenizer_config.json on the Hub).
+    """
+    with tempfile.TemporaryDirectory(prefix="hf_tok_cfg_patch_") as tmp:
+        snapshot_download(
+            repo_id=model_id,
+            local_dir=tmp,
+            allow_patterns=["tokenizer.json", "tokenizer_config.json", "chat_template.jinja"],
+            token=hf_token,
+        )
+        cfg_path = Path(tmp) / "tokenizer_config.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        cfg = _normalize_tokenizer_config_extra_special_tokens(cfg)
+        cfg_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+        return AutoTokenizer.from_pretrained(
+            tmp,
+            local_files_only=True,
+            token=from_pretrained_kwargs.pop("token", hf_token),
+            **from_pretrained_kwargs,
+        )
+
+
 def load_tokenizer(model_name, model_id, hf_token, *, local_tokenizer_path=None):
     if local_tokenizer_path is not None:
         kwargs = {}
@@ -105,6 +153,9 @@ def load_tokenizer(model_name, model_id, hf_token, *, local_tokenizer_path=None)
         kwargs["trust_remote_code"] = True
     if model_name in {"Sarvam 30B", "Nemotron", "Nemotron Indic Expanded", "Nemotron Continued BPE"}:
         kwargs["fix_mistral_regex"] = True
+    if _needs_gemma4_extra_special_tokens_dict_fix(model_id):
+        kwargs["trust_remote_code"] = True
+        return load_tokenizer_from_hub_with_tokenizer_config_patch(model_id, hf_token, **kwargs)
     return AutoTokenizer.from_pretrained(model_id, **kwargs)
 
 

@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-Complete Nemotron Tokenizer Extension Toolkit (Unified).
+Complete Nemotron Tokenizer Extension Toolkit (Unified & Patched).
 
-This script implements all logics from taidopurason/tokenizer-extension:
-1. Continued BPE Training (train_vocab_extension & bpe_extension)
-2. Safe Extension Application (extension.py)
-3. "Mean of Constituents" Embedding Modification (models.py)
-4. Unreachable Token Benchmarking (benchmarking.py)
-5. Vocabulary Pruning Strategies (pruning.py)
+Fixes applied:
+1. Exploding Merges Bug: Implemented dependency backtracking to strictly add ONLY 
+   the requested 64k tokens (and their required topological parents), preventing 130k+ fan-out.
+2. Cross-Device Tensor Bug: Explicit device handling added to `modify_embeddings` 
+   so model layers partitioned across multiple GPUs don't crash during mean pooling.
 """
 
 from __future__ import annotations
@@ -41,7 +40,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# 1. CONSTANTS & DATA STREAMING (data.py)
+# 1. CONSTANTS & DATA STREAMING
 # =============================================================================
 DATASET_ID = "krutrim-ai-labs/BhashaKritika"
 DEFAULT_MODEL_ID = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
@@ -95,9 +94,8 @@ def batch_iterator(stream: Iterable[str], batch_size: int = 1000) -> Iterator[li
             batch = []
     if batch: yield batch
 
-
 # =============================================================================
-# 2. BPE ARTIFACTS EXTRACTION (bpe_extension.py & train_vocab_extension.py)
+# 2. BPE ARTIFACTS EXTRACTION
 # =============================================================================
 @dataclass(frozen=True)
 class ExtensionArtifacts:
@@ -131,9 +129,8 @@ def compute_continued_bpe_artifacts(base_backend: Tokenizer, trained_backend: To
     new_vocab = {t: int(trained_vocab[t]) for t in trained_vocab.keys() if t not in base_vocab_set}
     return ExtensionArtifacts(new_vocab=new_vocab, new_merges=new_merges)
 
-
 # =============================================================================
-# 3. EXTENSION APPLICATION (extension.py)
+# 3. EXTENSION APPLICATION & DEPENDENCY RESOLUTION
 # =============================================================================
 def _apply_bpe_extension_backend(
     base_backend: Tokenizer, new_vocab: dict[str, int], new_merges: list[str] | None, 
@@ -146,45 +143,76 @@ def _apply_bpe_extension_backend(
     merges_raw = model.get("merges", [])
     merges: list[str] = [m if isinstance(m, str) else f"{m[0]} {m[1]}" for m in merges_raw]
     base_size = len(vocab)
+    base_vocab_set = set(vocab.keys())
 
+    # Get exactly the top n_tokens we want to add
     selected_tokens = [t for (t, _) in sorted(new_vocab.items(), key=lambda kv: kv[1])][: int(n_tokens)]
     selected_set = set(selected_tokens)
 
-    if keep_added_token_positions:
-        rank_map = {tok: i for i, tok in enumerate(selected_tokens)}
-        for tok in selected_tokens:
-            if tok not in vocab: vocab[tok] = base_size + rank_map[tok]
-    else:
+    if not new_merges:
         next_id = (max(vocab.values()) + 1) if vocab else 0
         for tok in selected_tokens:
             if tok not in vocab:
                 vocab[tok] = next_id
                 next_id += 1
-
-    if not new_merges:
         model["vocab"] = vocab
         return Tokenizer.from_str(json.dumps(obj))
 
-    existing_merges = set(merges)
+    # --- BUG FIX 1: Strict Dependency Backtracking ---
+    merge_map = {}
+    for rule in new_merges:
+        parts = rule.split(" ")
+        if len(parts) == 2:
+            merge_map["".join(parts)] = rule
 
-    def ensure_token(tok: str) -> None:
-        if tok not in vocab: vocab[tok] = (max(vocab.values()) + 1) if vocab else 0
+    required_tokens = set(selected_set)
+    queue = list(selected_set)
 
+    # Find all intermediate tokens required to build our target 64k tokens
+    while queue:
+        tok = queue.pop(0)
+        if tok in merge_map:
+            parts = merge_map[tok].split(" ")
+            for p in parts:
+                if p not in required_tokens and p not in base_vocab_set:
+                    required_tokens.add(p)
+                    queue.append(p)
+
+    # Filter merges: Keep ONLY rules that produce our necessary tokens
     filtered_merges: list[str] = []
     for pair in new_merges:
         parts = pair.split(" ")
-        if len(parts) == 2 and (parts[0] in selected_set or parts[1] in selected_set or (parts[0]+parts[1]) in selected_set):
+        if len(parts) == 2 and "".join(parts) in required_tokens:
             filtered_merges.append(pair)
 
+    # Collect and sort all required tokens (target + dependencies) by their learned priority
+    final_tokens_to_add = []
+    for tok in required_tokens:
+        if tok not in base_vocab_set:
+            # Default to infinity so fallback tokens go to the end if missing from vocab
+            final_tokens_to_add.append((tok, new_vocab.get(tok, float('inf'))))
+    
+    final_tokens_to_add.sort(key=lambda x: x[1])
+    ordered_new_tokens = [t[0] for t in final_tokens_to_add]
+
+    # Add to Vocabulary
+    if keep_added_token_positions:
+        rank_map = {tok: i for i, tok in enumerate(ordered_new_tokens)}
+        for tok in ordered_new_tokens:
+            if tok not in vocab: vocab[tok] = base_size + rank_map[tok]
+    else:
+        next_id = (max(vocab.values()) + 1) if vocab else 0
+        for tok in ordered_new_tokens:
+            if tok not in vocab:
+                vocab[tok] = next_id
+                next_id += 1
+
+    # Add to Merges
+    existing_merges = set(merges)
     for rule in filtered_merges:
-        parts = rule.split(" ")
-        if len(parts) == 2:
-            ensure_token(parts[0])
-            ensure_token(parts[1])
-            ensure_token(parts[0] + parts[1])
-            if rule not in existing_merges:
-                merges.append(rule)
-                existing_merges.add(rule)
+        if rule not in existing_merges:
+            merges.append(rule)
+            existing_merges.add(rule)
 
     model["vocab"] = vocab
     model["merges"] = merges
@@ -205,9 +233,8 @@ def extend_tokenizer(
         eos_token=getattr(tokenizer, "eos_token", None), pad_token=getattr(tokenizer, "pad_token", None)
     )
 
-
 # =============================================================================
-# 4. MODEL MODIFICATION (models.py)
+# 4. MODEL MODIFICATION
 # =============================================================================
 InitMethod = Literal["mean", "mean_of_constituents"]
 
@@ -224,34 +251,43 @@ def modify_embeddings(
     model.resize_token_embeddings(new_n)
     
     in_emb = model.get_input_embeddings().weight
-    global_mean_in = in_emb[:old_n].mean(dim=0)
-
     out_layer = model.get_output_embeddings()
     out_emb = out_layer.weight if out_layer is not None else None
-    global_mean_out = out_emb[:old_n].mean(dim=0) if out_emb is not None else None
+
+    # Calculate global means (detach to prevent graph buildup)
+    global_mean_in = in_emb[:old_n].mean(dim=0).detach()
+    global_mean_out = out_emb[:old_n].mean(dim=0).detach() if out_emb is not None else None
 
     with torch.no_grad():
         for tid in tqdm(range(old_n, new_n), desc="Initializing Embeddings"):
             tok = new_tokenizer.convert_ids_to_tokens(tid)
-            vec_in, vec_out = global_mean_in, global_mean_out
+            vec_in = global_mean_in.clone()
+            vec_out = global_mean_out.clone() if global_mean_out is not None else None
 
             if init_method == "mean_of_constituents":
                 text = new_tokenizer.convert_tokens_to_string([tok])
                 enc = old_tokenizer(text, add_special_tokens=False)
                 ids = [i for i in enc.get("input_ids", []) if 0 <= i < old_n]
                 if ids:
-                    vec_in = in_emb[ids].mean(dim=0)
-                    if out_emb is not None: vec_out = out_emb[ids].mean(dim=0)
+                    # --- BUG FIX 2: Explicit device tracking for Multi-GPU setups ---
+                    ids_tensor_in = torch.tensor(ids, device=in_emb.device)
+                    vec_in = in_emb[ids_tensor_in].mean(dim=0)
+                    
+                    if out_emb is not None:
+                        ids_tensor_out = torch.tensor(ids, device=out_emb.device)
+                        vec_out = out_emb[ids_tensor_out].mean(dim=0)
 
-            in_emb[tid].copy_(vec_in)
-            if out_emb is not None and vec_out is not None: out_emb[tid].copy_(vec_out)
+            # Ensure tensors are moved to the correct device partition before copying
+            in_emb[tid].copy_(vec_in.to(in_emb.device))
+            if out_emb is not None and vec_out is not None: 
+                out_emb[tid].copy_(vec_out.to(out_emb.device))
+                
             changes["initialized"].append({"id": tid, "token": tok, "method": init_method})
 
     return changes
 
-
 # =============================================================================
-# 5. BENCHMARKING & PRUNING (benchmarking.py & pruning.py)
+# 5. BENCHMARKING & PRUNING
 # =============================================================================
 def find_unreachable_tokens_merges(tokenizer: PreTrainedTokenizerBase) -> list[str]:
     vocab, merges = _get_bpe_state(tokenizer.backend_tokenizer.to_str())
@@ -261,11 +297,11 @@ def find_unreachable_tokens_merges(tokenizer: PreTrainedTokenizerBase) -> list[s
     for rule in merges:
         parts = rule.split(" ")
         if len(parts) == 2:
-            out = parts[0] + parts[1]
+            out = "".join(parts)
             merge_pairs.append((parts[0], parts[1], out))
             merge_outputs.add(out)
 
-    reachable = set(vocab_tokens - merge_outputs) # Leaves
+    reachable = set(vocab_tokens - merge_outputs)
     changed = True
     while changed:
         changed = False
@@ -300,8 +336,7 @@ class FrequencyPruner(BasePruner):
         self.token_ids_to_prune = self.token_ids_sorted[: int(n_tokens)]
 
     def save(self, path: str | Path) -> None:
-        Path(path).write_text(json.dumps({"token_ids_to_prune": self.token_ids_to_prune}, indent=2))
-
+        Path(path).write_text(json.dumps({"token_ids_to_prune": getattr(self, "token_ids_to_prune", [])}, indent=2))
 
 # =============================================================================
 # 6. MAIN ORCHESTRATOR
@@ -320,7 +355,6 @@ def main():
     )
     parser.add_argument("--tokenizer-only", action="store_true")
     
-    # Advanced features from repo
     parser.add_argument("--keep-added-token-positions", action="store_true", help="Preserve dense relative ID placements.")
     parser.add_argument("--init-method", choices=["mean", "mean_of_constituents"], default="mean_of_constituents")
     parser.add_argument("--benchmark", action="store_true", help="Calculate and print unreachable tokens.")
@@ -337,10 +371,9 @@ def main():
     total_docs = len(langs) * args.samples_per_lang
     devanagari_norm = get_devanagari_normalizer()
 
-    logger.info("Loading Base Tokenizer with Mistral Regex Fix...")
-    base_tok = AutoTokenizer.from_pretrained(args.model_id, use_fast=True, trust_remote_code=True, fix_mistral_regex=True)
+    logger.info("Loading Base Tokenizer...")
+    base_tok = AutoTokenizer.from_pretrained(args.model_id, use_fast=True, trust_remote_code=True)
 
-    # STEP 1: Stream and Train Temporary Artifacts
     logger.info(f"Phase 1: Streaming ~{total_docs} docs to learn optimal subwords...")
     with tqdm(total=total_docs, desc="Corpus Streaming", unit="docs") as pbar:
         stream = mixed_language_text_stream(langs, args.samples_per_lang, devanagari_norm, pbar)
@@ -349,12 +382,10 @@ def main():
     logger.info("Phase 2: Extracting Diff Artifacts...")
     artifacts = compute_continued_bpe_artifacts(base_tok.backend_tokenizer, trained_tok.backend_tokenizer)
     
-    # Save artifacts directly mimicking the repo
     merges_pairs = [tuple(x.split(" ")) for x in artifacts.new_merges if len(x.split(" ")) == 2]
     with open(os.path.join(args.out_dir, "vocab.json"), "w") as f: json.dump(artifacts.new_vocab, f, ensure_ascii=False)
     with open(os.path.join(args.out_dir, "merges.json"), "w") as f: json.dump(artifacts.new_merges, f, ensure_ascii=False)
 
-    # STEP 2: Extend Tokenizer
     logger.info("Phase 3: Splicing merges into base tokenizer...")
     expanded_tok = extend_tokenizer(
         base_tok, artifacts.new_vocab, merges_pairs, 
@@ -362,29 +393,25 @@ def main():
     )
     expanded_tok.save_pretrained(args.out_dir)
 
-    # STEP 3: Benchmarking (Optional)
     if args.benchmark:
         logger.info("Phase 3.5: Benchmarking Unreachable Graph Tokens...")
         unreachable = find_unreachable_tokens_merges(expanded_tok)
         logger.info(f"Found {len(unreachable)} mathematically unreachable tokens in the BPE graph.")
         with open(os.path.join(args.out_dir, "unreachable.json"), "w") as f: json.dump(unreachable, f, ensure_ascii=False)
 
-    # STEP 4: Pruning (Optional)
     if args.prune_size > 0:
         logger.info(f"Phase 3.5: Calculating {args.prune_size} tokens to prune via FrequencyPruner...")
         pruner = FrequencyPruner()
-        # We need a small fresh stream to count frequencies
         prune_stream = mixed_language_text_stream(langs, min(args.samples_per_lang, 10000), devanagari_norm, None)
         pruner.train(expanded_tok, list(prune_stream))
         pruner.prune(expanded_tok, args.prune_size)
         pruner.save(os.path.join(args.out_dir, "pruned_tokens.json"))
-        logger.info("Pruned tokens list saved (Downstream scripts must filter these IDs during CPT).")
+        logger.info("Pruned tokens list saved.")
 
     if args.tokenizer_only:
         logger.info("Tokenizer-only mode active. Exiting before Model initialization.")
         return
 
-    # STEP 5: Modify Embeddings
     logger.info(f"Phase 4: Loading Model & Applying '{args.init_method}' embeddings...")
     model = AutoModelForCausalLM.from_pretrained(args.model_id, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True)
     

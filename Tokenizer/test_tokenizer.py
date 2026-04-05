@@ -18,7 +18,7 @@ from transformers import AutoTokenizer
 
 DEFAULT_BASE = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16"
 DEFAULT_INDIC_EXPANDED = "/home/admin/nvidia/Nemotron_Nano_30B/Tokenizer/nemotron-indic-expanded"
-DEFAULT_CONTINUED_BPE = "/home/admin/nvidia/Nemotron_Nano_30B/Tokenizer/outputs/continued_bpe_20260331_150643"
+DEFAULT_CONTINUED_BPE = "/home/admin/nvidia/Nemotron_Nano_30B/Tokenizer/outputs/continued_bpe_20260404_041116"
 
 # Sample sentences across the trained languages
 SAMPLES = {
